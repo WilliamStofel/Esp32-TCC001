@@ -41,9 +41,9 @@ DHT dht(DHTPIN, DHTTYPE); // Initialing DHT Class
 
 
 HTTPClient http;
-#define LED_BUILTIN 4
-#define SENSOR  27 //sensor volumetrico
-#define SENSORSOLO  34 //sensor volumetrico
+#define BOMBA 4
+#define SENSOR  15 //sensor vazao
+#define SENSORSOLO  5 //sensor umidade da terra
 float porcentagem;
 boolean StatusOn = false;
 boolean StatusOff = true;
@@ -76,9 +76,9 @@ String sensorReadings;
 
 //const char* serverName = "http://18.117.162.50:4041/iot/devices/lamp001 Content-Type: application/json fiware-servicepath:  /";
 //const char* serverName = "http://18.117.162.50:1026/iot/devices/lamp001";
-const char* serverName = "http://3.143.0.175:4041/iot/devices/lamp002";
+const char* serverName = "http://18.117.76.34:4041/iot/devices/lamp002";
 
-const char *orionAddressPath = "3.143.0.175:1026/v2";
+const char *orionAddressPath = "18.117.76.34:1026/v2";
 
 
 // WIFI
@@ -86,7 +86,7 @@ const char* SSID = "Tenda_185470"; // SSID / nome da rede WI-FI que deseja se co
 const char* PASSWORD = "1533365150"; // Senha da rede WI-FI que deseja se conectar
   
 // MQTT
-const char* BROKER_MQTT = "3.143.0.175"; //URL do broker MQTT que se deseja utilizar
+const char* BROKER_MQTT = "18.117.76.34"; //URL do broker MQTT que se deseja utilizar
 int BROKER_PORT = 1883; // Porta do Broker MQTT
  
  
@@ -259,7 +259,7 @@ void mqtt_callback(char* topic, byte* payload1, unsigned int length)
     {
         
         Serial.println("Ligando Bomba");
-        digitalWrite(LED_BUILTIN, HIGH);
+        digitalWrite(BOMBA, HIGH);
         EstadoSaida = '0';
         Aux = "SIM";
         StatusOn = true;
@@ -270,7 +270,7 @@ void mqtt_callback(char* topic, byte* payload1, unsigned int length)
     if (msg.equals("lamp002@off|"))
     {
         Serial.println("Desligando Bomba");
-        digitalWrite(LED_BUILTIN, LOW);
+        digitalWrite(BOMBA, LOW);
         EstadoSaida = '1';
         Aux = "SIM";
         StatusOn = false;
@@ -380,8 +380,8 @@ void InitOutput(void)
 {
     //IMPORTANTE: o Led já contido na placa é acionado com lógica invertida (ou seja,
     //enviar HIGH para o output faz o Led apagar / enviar LOW faz o Led acender)
-    pinMode(LED_BUILTIN, OUTPUT);
-    digitalWrite(LED_BUILTIN, LOW);          
+    pinMode(BOMBA, OUTPUT);
+    digitalWrite(BOMBA, LOW);          
 }
 
 
@@ -591,7 +591,10 @@ void SensorUmidadeSolo(void *arg)
     
     Serial.println(String("Valor sensor: ")+ valor_analogico +String(" Valor Porcentagem: ")+ porcentagem + String("%"));
     delay(1000);
-
+    if(porcentagem > 40)
+       digitalWrite(BOMBA, HIGH);     
+    else
+       digitalWrite(BOMBA, LOW);    
 
   
    }
