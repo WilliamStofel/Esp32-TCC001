@@ -19,15 +19,15 @@
 #include <Arduino_JSON.h>
 
 
-#define DHTPIN 13          // Digital pin connected to the DHT sensor
+#define DHTPIN 4          // Digital pin connected to the DHT sensor
 #define DHTTYPE DHT11     // DHT 11
 DHT dht(DHTPIN, DHTTYPE); // Initialing DHT Class
  
 //defines:
 //defines de id mqtt e tópicos para publicação e subscribe
-#define TOPICO_SUBSCRIBE "/iot/lamp002/cmd"     //tópico MQTT de escuta
-#define TOPICO_PUBLISH_AIRTEMPARATURE_HUMIDITY   "urn:ngsi-ld:smartirrigation:002"    //tópico MQTT de envio de informações para Broker
-#define TOPICO_PUBLISH   "/iot/lamp002/attrs"    //tópico MQTT de envio de informações para Broker
+#define TOPICO_SUBSCRIBE "/iot/smartirrigation005/cmd"     //tópico MQTT de escuta
+#define TOPICO_PUBLISH_AIRTEMPARATURE_HUMIDITY   "urn:ngsi-ld:smartirrigation:005"    //tópico MQTT de envio de informações para Broker
+#define TOPICO_PUBLISH   "/iot/smartirrigation005/attrs"    //tópico MQTT de envio de informações para Broker
 
                                                    //IMPORTANTE: recomendamos fortemente alterar os nomes
                                                    //            desses tópicos. Caso contrário, há grandes
@@ -41,9 +41,9 @@ DHT dht(DHTPIN, DHTTYPE); // Initialing DHT Class
 
 
 HTTPClient http;
-#define BOMBA 4
+#define BOMBA 13
 #define SENSOR  15 //sensor vazao
-#define SENSORSOLO  5 //sensor umidade da terra
+#define SENSORSOLO  35 //sensor umidade da terra
 float porcentagem;
 boolean StatusOn = false;
 boolean StatusOff = true;
@@ -74,11 +74,9 @@ short meanHumidity;
 String sensorReadings;
 
 
-//const char* serverName = "http://18.117.162.50:4041/iot/devices/lamp001 Content-Type: application/json fiware-servicepath:  /";
-//const char* serverName = "http://18.117.162.50:1026/iot/devices/lamp001";
-const char* serverName = "http://18.117.76.34:4041/iot/devices/lamp002";
+const char* serverName = "http://18.216.218.224:4041/iot/devices/smartirrigation005";
 
-const char *orionAddressPath = "18.117.76.34:1026/v2";
+const char *orionAddressPath = "18.216.218.224:1026/v2";
 
 
 // WIFI
@@ -86,7 +84,7 @@ const char* SSID = "Tenda_185470"; // SSID / nome da rede WI-FI que deseja se co
 const char* PASSWORD = "1533365150"; // Senha da rede WI-FI que deseja se conectar
   
 // MQTT
-const char* BROKER_MQTT = "18.117.76.34"; //URL do broker MQTT que se deseja utilizar
+const char* BROKER_MQTT = "18.216.218.224"; //URL do broker MQTT que se deseja utilizar
 int BROKER_PORT = 1883; // Porta do Broker MQTT
  
  
@@ -238,6 +236,7 @@ void initMQTT()
 void mqtt_callback(char* topic, byte* payload1, unsigned int length) 
 {
     
+    Serial.println("ENTROUUUUUUUUUUUUUUU");
     String msg;
 
     Serial.println("Entrou no mqtt callback");
@@ -249,13 +248,13 @@ void mqtt_callback(char* topic, byte* payload1, unsigned int length)
     }
 
    
-   Serial.println(msg);
+   Serial.println("mqtt callback: " + msg);
         
     //toma ação dependendo da string recebida:
     //verifica se deve colocar nivel alto de tensão na saída D0:
     //IMPORTANTE: o Led já contido na placa é acionado com lógica invertida (ou seja,
     //enviar HIGH para o output faz o Led apagar / enviar LOW faz o Led acender)
-    if (msg.equals("lamp002@on|"))
+    if (msg.equals("smartirrigation005@on|"))
     {
         
         Serial.println("Ligando Bomba");
@@ -267,7 +266,7 @@ void mqtt_callback(char* topic, byte* payload1, unsigned int length)
     }
  
     //verifica se deve colocar nivel alto de tensão na saída D0:
-    if (msg.equals("lamp002@off|"))
+    if (msg.equals("smartirrigation005@off|"))
     {
         Serial.println("Desligando Bomba");
         digitalWrite(BOMBA, LOW);
@@ -349,7 +348,7 @@ void VerificaConexoesWiFIEMQTT(void)
 void EnviaEstadoOutputMQTT(void)
 {
     Serial.println(Aux);
-
+    
     if(Aux == "SIM")
     {
       if (EstadoSaida == '1')
@@ -448,7 +447,7 @@ void InitOutput(void)
     if(meanHumidity > -1 and meanTemperature > -1 )
     {
       Serial.println("Updating data in orion...");
-      orionUpdate(TOPICO_PUBLISH_AIRTEMPARATURE_HUMIDITY, msgTemperature, msgHumidity); 
+      //orionUpdate(TOPICO_PUBLISH_AIRTEMPARATURE_HUMIDITY, msgTemperature, msgHumidity); 
     }
     
     }
@@ -576,13 +575,19 @@ void SensorVazao(void *arg)
 
 void SensorUmidadeSolo(void *arg)
 {
-   String bodyRequest = "";
+   //String bodyRequest = "";
+   char StringFinalHumiditySoil[19];
+  
+   char ConvertHumiditySoil[6];
+ 
+
    porcentagem = 0;
    while(1) {
     Serial.println("SensorUmidade do Solo running on core ");
     Serial.println(xPortGetCoreID());
 
     int valor_analogico = analogRead(SENSORSOLO);
+    Serial.println(String("Valor sensor: ")+ valor_analogico + " " + SENSORSOLO);
     if(SENSORSOLO > 0 )
     {
       porcentagem = (valor_analogico/40.95)-100;
@@ -592,7 +597,18 @@ void SensorUmidadeSolo(void *arg)
     Serial.println(String("Valor sensor: ")+ valor_analogico +String(" Valor Porcentagem: ")+ porcentagem + String("%"));
     delay(1000);
     if(porcentagem > 40)
-       digitalWrite(BOMBA, HIGH);     
+    { 
+      
+      delay(15000);
+      digitalWrite(BOMBA, HIGH);
+      strcpy(StringFinalHumiditySoil,"humiditySoil|");
+      dtostrf(porcentagem, 6, 2, ConvertHumiditySoil);
+      strcat(StringFinalHumiditySoil,ConvertHumiditySoil);
+      MQTT.publish(TOPICO_PUBLISH, StringFinalHumiditySoil);
+    
+      Serial.println(String("VALOR ENVIADO MQTT ") + StringFinalHumiditySoil + String("VALOR PORCENTAGEM ") + porcentagem);
+      
+    }   
     else
        digitalWrite(BOMBA, LOW);    
 
