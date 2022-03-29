@@ -41,7 +41,7 @@ DHT dht(DHTPIN, DHTTYPE); // Initialing DHT Class
 
 
 HTTPClient http;
-#define BOMBA 13
+#define BOMBA 17
 #define SENSOR  15 //sensor vazao
 #define SENSORSOLO  35 //sensor umidade da terra
 float porcentagem;
@@ -52,6 +52,7 @@ boolean StatusOff = true;
 long currentMillis = 0;
 long previousMillis = 0;
 int interval = 1000;
+int Qtd = 0;
 boolean ledState = LOW;
 String Aux = "NAO";
 float calibrationFactor = 4.5;
@@ -67,8 +68,8 @@ void IRAM_ATTR pulseCounter()
   pulseCount++;
 }
 
-short meanTemperature;
-short meanHumidity;
+float meanTemperature;
+float meanHumidity;
 
 
 String sensorReadings;
@@ -80,8 +81,7 @@ const char *orionAddressPath = "18.216.218.224:1026/v2";
 
 
 // WIFI
-const char* SSID = "Tenda_185470"; // SSID / nome da rede WI-FI que deseja se conectar
-const char* PASSWORD = "1533365150"; // Senha da rede WI-FI que deseja se conectar
+const char* SSID = "MAIA"; // SS0eseja se conectar
   
 // MQTT
 const char* BROKER_MQTT = "18.216.218.224"; //URL do broker MQTT que se deseja utilizar
@@ -167,38 +167,6 @@ void initSerial()
 
 
 
-String httpGETRequest(const char* serverName) {
-  WiFiClient client;
-  HTTPClient http;
- 
-  // Your IP address with path or Domain name with URL path 
-  http.begin(client,serverName);
-  http.addHeader("fiware-service", "helixiot");
-  http.addHeader("fiware-servicepath", "/");
-  http.addHeader("Content-Type","application/json");
- // Serial.print( client);
-  
-
-
-  // Send HTTP POST request
-  int httpResponseCode = http.GET();
-
-  String payload1 = "{}"; 
-
-  if (httpResponseCode>0) {
-    //Serial.print("HTTP Response code: ");
-    payload1 = http.getString();
-  }
-  else {
-    Serial.print("Error code: ");
-    //Serial.println(httpResponseCode);
-  }
-  // Free resources
-  http.end();
-  
-  
-  return payload1;
-}
 
 
 
@@ -236,7 +204,7 @@ void initMQTT()
 void mqtt_callback(char* topic, byte* payload1, unsigned int length) 
 {
     
-    Serial.println("ENTROUUUUUUUUUUUUUUU");
+    
     String msg;
 
     Serial.println("Entrou no mqtt callback");
@@ -258,7 +226,7 @@ void mqtt_callback(char* topic, byte* payload1, unsigned int length)
     {
         
         Serial.println("Ligando Bomba");
-        digitalWrite(BOMBA, HIGH);
+        digitalWrite(BOMBA, LOW);
         EstadoSaida = '0';
         Aux = "SIM";
         StatusOn = true;
@@ -269,7 +237,7 @@ void mqtt_callback(char* topic, byte* payload1, unsigned int length)
     if (msg.equals("smartirrigation005@off|"))
     {
         Serial.println("Desligando Bomba");
-        digitalWrite(BOMBA, LOW);
+        digitalWrite(BOMBA, HIGH);
         EstadoSaida = '1';
         Aux = "SIM";
         StatusOn = false;
@@ -355,15 +323,15 @@ void EnviaEstadoOutputMQTT(void)
       {
         Aux = "NAO";
         Serial.println("ON");
-        MQTT.publish(TOPICO_PUBLISH,"on_status|on");
-        MQTT.publish(TOPICO_PUBLISH,"off_status|off");
+        MQTT.publish(TOPICO_PUBLISH,"on_status|1");
+        MQTT.publish(TOPICO_PUBLISH,"off_status|0");
       }
       else 
       {
         Aux = "NAO";
         Serial.println("OFF");
-        MQTT.publish(TOPICO_PUBLISH, "off_status|on");
-        MQTT.publish(TOPICO_PUBLISH, "on_status|off");
+        MQTT.publish(TOPICO_PUBLISH, "off_status|1");
+        MQTT.publish(TOPICO_PUBLISH, "on_status|0");
       }
     }
       
@@ -380,7 +348,7 @@ void InitOutput(void)
     //IMPORTANTE: o Led já contido na placa é acionado com lógica invertida (ou seja,
     //enviar HIGH para o output faz o Led apagar / enviar LOW faz o Led acender)
     pinMode(BOMBA, OUTPUT);
-    digitalWrite(BOMBA, LOW);          
+    digitalWrite(BOMBA, HIGH);          
 }
 
 
@@ -393,8 +361,8 @@ void InitOutput(void)
     int AuxiliarHumidade = 5;
     float totalTemperature = 0;
     float totalHumidity = 0;
-    meanTemperature = 0;
-    meanHumidity = 0;
+    //meanTemperature = 0;
+    //meanHumidity = 0;
     
     for (short i = 0; i < 5; i++)
     {
@@ -443,6 +411,8 @@ void InitOutput(void)
     sprintf(msgHumidity, "%d", meanHumidity);
     sprintf(msgTemperature, "%d", meanTemperature);
 
+
+   
     // Update
     if(meanHumidity > -1 and meanTemperature > -1 )
     {
@@ -464,74 +434,9 @@ void loop()
      
     //keep-alive da comunicação com broker MQTT
     MQTT.loop();
-      
-      
-    sensorReadings = httpGETRequest(serverName);
- 
-    Serial.println(sensorReadings);
- 
-    JSONVar myObject = JSON.parse(sensorReadings);
- 
   
 }
 
-void orionUpdate(String entityID, String temperature, String humidity)
-{
-    //delay(20000);
-    String bodyRequest = "{\"temperature\": { \"value\": \"" + temperature + "\", \"type\": \"float\"}, \"humidity\": { \"value\": \"" + humidity + "\", \"type\": \"float\"}, \"flow_rate\": { \"value\": \"" + flowRate + "\", \"type\": \"float\"}, \"total_flow\": { \"value\": \"" + totalMilliLitres + "\", \"type\": \"float\"}, \"humiditySoil\": { \"value\": \"" + porcentagem + "\", \"type\": \"float\"}, \"on\": { \"value\": \"" + StatusOn + "\", \"type\": \"command\"}, \"off\": { \"value\": \"" + StatusOff + "\", \"type\": \"command\"}}";
-    String pathRequest = "/entities/" + entityID + "/attrs?options=forcedUpdate";
-    httpRequest(pathRequest, bodyRequest);
-}
-
-void httpRequest(String path, String data)
-{
-    String payload2 = makeRequest(path, data);
-
-    if (!payload2)
-    {
-        return;
-    }
-
-    Serial.println("##[RESULT]## ==> " + payload2);
-}
-
-// Request Helper
-String makeRequest(String path, String bodyRequest)
-{
-    String fullAddress = "http://" + String(orionAddressPath) + path;
-    http.begin(fullAddress);
-    Serial.println("Orion URI request: " + fullAddress);
-
-    http.addHeader("Content-Type", "application/json");
-    http.addHeader("Accept", "application/json");
-    http.addHeader("fiware-service", "helixiot");
-    http.addHeader("fiware-servicepath", "/");
-
-    Serial.println(bodyRequest);
-    //int httpCode = http.GET();
-    
-    int httpCode = http.POST(bodyRequest);
-
-    //
-
-    Serial.println("HTTP CODE");
-    Serial.println(httpCode);
-    //http.POST(bodyRequest);
-    if (httpCode < 0)
-    {
-        Serial.println("request error - " + httpCode);
-        return "";
-    }
-
-    if (httpCode != HTTP_CODE_OK)
-    {
-        return "";
-    }
-    String response = http.getString();
-    http.end();
-
-    return response;
-}
 
 void SensorVazao(void *arg)
 {
@@ -564,30 +469,47 @@ void SensorVazao(void *arg)
       Serial.print(totalMilliLitres / 1000);
       Serial.println("L");
 
-      if (flowRate > 30){
-        //helixUpdate(deviceID, totalMilliLitres, flowRate);
+      if (flowRate < 30){
+         flowRate = 0;
         
       }
+      
+        
    }
-   
+
 }
 }
 
 void SensorUmidadeSolo(void *arg)
 {
    //String bodyRequest = "";
+   
    char StringFinalHumiditySoil[19];
-  
    char ConvertHumiditySoil[6];
- 
+   
+   char StringFinalFlowRate[45];
+   char ConvertFlowRate[12];
+   
+   char StringFinalTotalMilliLitres[45];
+   char ConvertTotalMilliLitres[12];
+   
+   char StringFinalHumidity[19];
+   char ConvertHumidity[12];
+   
+   char StringFinalTemperature[19];
+   char ConvertTemperature[12];
+  
+  
 
    porcentagem = 0;
    while(1) {
+    Qtd++;
     Serial.println("SensorUmidade do Solo running on core ");
     Serial.println(xPortGetCoreID());
-
+    Serial.println("QTD:");
+    Serial.println(Qtd);
     int valor_analogico = analogRead(SENSORSOLO);
-    Serial.println(String("Valor sensor: ")+ valor_analogico + " " + SENSORSOLO);
+    
     if(SENSORSOLO > 0 )
     {
       porcentagem = (valor_analogico/40.95)-100;
@@ -596,22 +518,53 @@ void SensorUmidadeSolo(void *arg)
     
     Serial.println(String("Valor sensor: ")+ valor_analogico +String(" Valor Porcentagem: ")+ porcentagem + String("%"));
     delay(1000);
-    if(porcentagem > 40)
+    if(Qtd == 60)
     { 
+      Qtd=0; 
+
+ 
+   
+    
+    strcpy(StringFinalHumiditySoil,"humiditySoil|");
+    strcpy(StringFinalFlowRate,"flow_rate|");
+    strcpy(StringFinalTotalMilliLitres,"total_flow|");
+    strcpy(StringFinalHumidity,"humidity|");
+    strcpy(StringFinalTemperature,"temperature|");
+
+    dtostrf(porcentagem, 4, 2, ConvertHumiditySoil);
+    dtostrf(flowRate, 2, 0, ConvertFlowRate);
+    dtostrf(totalMilliLitres, 2, 0, ConvertTotalMilliLitres);
+    dtostrf(meanHumidity, 4, 2, ConvertHumidity);
+    dtostrf(meanTemperature, 4, 2, ConvertTemperature);
+
+    
+ 
+
+    strcat(StringFinalHumiditySoil,ConvertHumiditySoil);
+    strcat(StringFinalFlowRate,ConvertFlowRate);
+    strcat(StringFinalTotalMilliLitres,ConvertTotalMilliLitres);
+    strcat(StringFinalHumidity,ConvertHumidity);
+    strcat(StringFinalTemperature,ConvertTemperature);
+
+    
       
-      delay(15000);
-      digitalWrite(BOMBA, HIGH);
-      strcpy(StringFinalHumiditySoil,"humiditySoil|");
-      dtostrf(porcentagem, 6, 2, ConvertHumiditySoil);
-      strcat(StringFinalHumiditySoil,ConvertHumiditySoil);
+      
       MQTT.publish(TOPICO_PUBLISH, StringFinalHumiditySoil);
+      MQTT.publish(TOPICO_PUBLISH, StringFinalTemperature);
+      MQTT.publish(TOPICO_PUBLISH, StringFinalHumidity);
+      MQTT.publish(TOPICO_PUBLISH, StringFinalTotalMilliLitres);
+      MQTT.publish(TOPICO_PUBLISH, StringFinalFlowRate);
     
       Serial.println(String("VALOR ENVIADO MQTT ") + StringFinalHumiditySoil + String("VALOR PORCENTAGEM ") + porcentagem);
       
-    }   
-    else
-       digitalWrite(BOMBA, LOW);    
+      Serial.println(String("Temperatura") + meanTemperature + String("Umidade") + meanHumidity);
+      Serial.println(String("Temperatura") + StringFinalTemperature + String("Umidade") + StringFinalHumidity);
 
-  
+    }   
+
+
+     
+    
+    
    }
 }
